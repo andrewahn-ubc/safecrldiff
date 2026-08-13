@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import shutil
 import subprocess
 import sys
+import sysconfig
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +62,13 @@ def pip(*arguments: str) -> None:
     subprocess.check_call([sys.executable, "-m", "pip", *arguments])
 
 
+def installed_version(package: str) -> str | None:
+    try:
+        return importlib.metadata.version(package)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
 def optional_binary_tool(package: str) -> bool:
     command_line = [
         sys.executable,
@@ -104,7 +113,17 @@ def main() -> None:
         "--requirement",
         str(project_root / "requirements.lock.txt"),
     )
-    pip("install", "--no-deps", PYARROW_WHEEL)
+    if installed_version("pyarrow") != "17.0.0":
+        pip(
+            "install",
+            "--no-deps",
+            "--only-binary=:all:",
+            "--platform=manylinux2014_x86_64",
+            "--target",
+            sysconfig.get_path("purelib"),
+            "--upgrade",
+            PYARROW_WHEEL,
+        )
     pip("install", "--editable", str(project_root), "--no-deps")
     pip("install", "--editable", str(vendor / "robosuite"))
     # The OopsieVerse installer itself applies this compatibility relaxation. Do

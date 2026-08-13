@@ -31,7 +31,9 @@ checkout. Pinned third-party dependencies must use binary wheels; Ruff is an
 optional wheel-only login-node lint check and can never trigger a Rust build.
 PyArrow is installed from the official CPython 3.10 Linux wheel using its
 direct PyPI URL and published SHA-256, bypassing Narval's module-only dummy
-wheel without compiling anything.
+wheel and explicitly targeting its supported manylinux ABI without compiling
+anything. The Alliance `arrow` module is not used because its current builds
+are not compatible with the pinned Python 3.10 environment.
 
 Expected early feasibility artifact:
 
