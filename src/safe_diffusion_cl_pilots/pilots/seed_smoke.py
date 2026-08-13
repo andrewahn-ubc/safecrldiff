@@ -61,7 +61,12 @@ def run(run_root: Path, seed: int, primitive_steps_per_policy: int = 200) -> Non
     if not gate["proceed_gpu"]:
         raise RuntimeError("seed smoke must not run when Pilot 0 is red")
     seed_everything(seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            f"A100 job cannot access CUDA (torch={torch.__version__}, "
+            f"torch.version.cuda={torch.version.cuda}, devices={torch.cuda.device_count()})"
+        )
+    device = torch.device("cuda")
     extractor = ObjectCentricObservation()
     results: dict[str, Any] = {}
     for index, actor_class in enumerate((DiffusionPolicy, GaussianChunkPolicy)):

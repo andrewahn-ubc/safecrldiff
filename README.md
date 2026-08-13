@@ -36,7 +36,13 @@ manylinux ABI, bypassing Narval's module-only dummy packages and source archives
 without compiling anything. Alliance `arrow` and `opencv` modules are not used
 because their current builds are not compatible with the pinned Python 3.10
 environment. MuJoCo's `etils` dependency is capped at 1.13.0, the latest release
-that supports Python 3.10.
+that supports Python 3.10. Every transitive dependency is explicitly pinned and
+installed with dependency resolution disabled; editable vendor builds also run
+without isolated build environments. OopsieVerse and DPPO are fixed to exact
+commits rather than whatever `main` points to on a rerun. RoboCasa asset setup
+checks task-specific files, downloads only incomplete groups, and never prompts
+or redownloads completed groups on reruns. The A100 stage also fails immediately
+if the allocated GPU is not visible to PyTorch instead of silently training on CPU.
 
 Expected early feasibility artifact:
 

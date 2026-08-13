@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -11,8 +12,16 @@ from pathlib import Path
 from typing import Any
 
 REPOSITORIES = {
-    "oopsieverse": ("https://github.com/UT-Austin-RobIn/oopsieverse.git", None, True),
-    "dppo": ("https://github.com/irom-princeton/dppo.git", None, True),
+    "oopsieverse": (
+        "https://github.com/UT-Austin-RobIn/oopsieverse.git",
+        "151efcee2200e3ec1ad76524a5961aef15ce5f28",
+        True,
+    ),
+    "dppo": (
+        "https://github.com/irom-princeton/dppo.git",
+        "cc7234ad7ff39a8f32de3af903606723a16f0648",
+        True,
+    ),
     "robosuite": ("https://github.com/ARISE-Initiative/robosuite.git", "aaa8b9b", True),
     "robocasa": ("https://github.com/robocasa/robocasa.git", "97a4060", True),
     "dsrl_reference": ("https://github.com/ajwagen/dsrl.git", None, False),
@@ -79,18 +88,38 @@ MANYLINUX_WHEELS = {
 }
 
 
-def command(*arguments: str, cwd: Path | None = None) -> str:
+def command(
+    *arguments: str,
+    cwd: Path | None = None,
+    input_text: str | None = None,
+) -> str:
     print("+", " ".join(arguments), flush=True)
-    return subprocess.check_output(arguments, cwd=cwd, text=True).strip()
+    return subprocess.check_output(
+        arguments,
+        cwd=cwd,
+        input=input_text,
+        text=True,
+    ).strip()
 
 
 def clone_or_resolve(vendor: Path, name: str, url: str, requested: str | None) -> str:
     destination = vendor / name
+    newly_cloned = False
     if not destination.exists():
         command("git", "clone", "--filter=blob:none", url, str(destination))
-        if requested:
-            command("git", "checkout", requested, cwd=destination)
+        newly_cloned = True
+    elif not (destination / ".git").exists():
+        raise RuntimeError(f"{destination} exists but is not a complete Git checkout")
     sha = command("git", "rev-parse", "HEAD", cwd=destination)
+    if requested and not sha.startswith(requested):
+        status = command("git", "status", "--porcelain", cwd=destination)
+        if status and not newly_cloned:
+            raise RuntimeError(
+                f"{name} is at {sha}, expected {requested}, and has local changes; "
+                "refusing to overwrite them"
+            )
+        command("git", "checkout", "--detach", requested, cwd=destination)
+        sha = command("git", "rev-parse", "HEAD", cwd=destination)
     if requested and not sha.startswith(requested):
         raise RuntimeError(f"{name} is at {sha}, expected {requested}")
     return sha
@@ -112,11 +141,26 @@ def installed_version(package: str) -> str | None:
         return None
 
 
+def installed_versions(package: str) -> set[str]:
+    normalized = re.sub(r"[-_.]+", "-", package).lower()
+    return {
+        distribution.version
+        for distribution in importlib.metadata.distributions()
+        if re.sub(r"[-_.]+", "-", distribution.metadata["Name"]).lower() == normalized
+    }
+
+
 def install_manylinux_wheels() -> None:
     destination = sysconfig.get_path("purelib")
     for package, (version, wheel) in MANYLINUX_WHEELS.items():
-        if installed_version(package) == version:
+        actual = installed_version(package)
+        if actual == version:
             continue
+        # A failed earlier bootstrap can leave a Compute Canada build of the
+        # same native package behind. Remove it before the targeted install so
+        # old dist-info and shared objects cannot shadow the pinned wheel.
+        if actual is not None:
+            pip("uninstall", "--yes", package)
         pip(
             "install",
             "--no-deps",
@@ -127,6 +171,122 @@ def install_manylinux_wheels() -> None:
             "--upgrade",
             wheel,
         )
+
+
+def verify_lock_file(lock_file: Path) -> None:
+    seen: set[str] = set()
+    problems = []
+    for line_number, raw_line in enumerate(lock_file.read_text().splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = re.fullmatch(
+            r"([A-Za-z0-9_.-]+)(?:\[[A-Za-z0-9_.-]+(?:,[A-Za-z0-9_.-]+)*\])?"
+            r"==([^;\s]+)",
+            line,
+        )
+        if match is None or match.group(2).endswith(".*"):
+            problems.append(f"line {line_number}: requirement is not exactly pinned: {line}")
+            continue
+        name = re.sub(r"[-_.]+", "-", match.group(1)).lower()
+        if name in seen:
+            problems.append(f"line {line_number}: duplicate requirement {match.group(1)}")
+        seen.add(name)
+    if problems:
+        raise RuntimeError("invalid requirements.lock.txt:\n" + "\n".join(problems))
+
+
+def verify_pinned_versions(lock_file: Path) -> None:
+    from packaging.requirements import Requirement
+
+    requirements = []
+    for raw_line in lock_file.read_text().splitlines():
+        line = raw_line.strip()
+        if line and not line.startswith("#"):
+            requirements.append(Requirement(line))
+    requirements.extend(
+        Requirement(f"{package}=={version}")
+        for package, (version, _) in MANYLINUX_WHEELS.items()
+    )
+    mismatches = []
+    for requirement in requirements:
+        actual = installed_versions(requirement.name)
+        if not actual or any(
+            not requirement.specifier.contains(version, prereleases=True) for version in actual
+        ):
+            mismatches.append(
+                f"{requirement.name}: expected {requirement.specifier}, found {sorted(actual)}"
+            )
+    if mismatches:
+        raise RuntimeError("pinned dependency verification failed:\n" + "\n".join(mismatches))
+
+
+def install_assets(vendor: Path) -> None:
+    robocasa_root = vendor / "robocasa"
+    assets_root = robocasa_root / "robocasa" / "models" / "assets"
+    asset_groups = {
+        "tex": (
+            assets_root / "textures" / "wood" / "dark_wood_planks_2.png",
+            assets_root / "textures" / "tiles" / "diamond_marble_parquet.png",
+        ),
+        "tex_generative": (
+            assets_root / "generative_textures" / "cabinet" / "tex001.png",
+        ),
+        "fixtures_lw": (
+            assets_root / "fixtures" / "ovens" / "Oven043" / "model.xml",
+            assets_root / "fixtures" / "fridges" / "Refrigerator066" / "model.xml",
+        ),
+        "objs_objaverse": (
+            assets_root / "objects" / "objaverse" / "cereal" / "cereal_2" / "model.xml",
+            assets_root / "objects" / "objaverse" / "wine" / "wine_2" / "model.xml",
+            assets_root / "objects" / "objaverse" / "wine" / "wine_5" / "model.xml",
+        ),
+        "objs_aigen": (
+            assets_root
+            / "objects"
+            / "aigen_objs"
+            / "wine_glass"
+            / "wine_glass_1"
+            / "model.xml",
+        ),
+        "objs_lw": (
+            assets_root
+            / "objects"
+            / "lightwheel"
+            / "flour_bag"
+            / "FlourBag002"
+            / "model.xml",
+        ),
+    }
+
+    def complete(paths: tuple[Path, ...]) -> bool:
+        return all(path.is_file() and path.stat().st_size > 0 for path in paths)
+
+    missing = [
+        name
+        for name, paths in asset_groups.items()
+        if not complete(paths)
+    ]
+    if missing:
+        command(
+            sys.executable,
+            "robocasa/scripts/download_kitchen_assets.py",
+            "--type",
+            *missing,
+            cwd=robocasa_root,
+            input_text="y\n",
+        )
+    incomplete = [
+        name
+        for name, paths in asset_groups.items()
+        if not complete(paths)
+    ]
+    if incomplete:
+        raise RuntimeError(f"RoboCasa asset download is incomplete: {incomplete}")
+    macros = robocasa_root / "robocasa" / "macros.py"
+    private_macros = robocasa_root / "robocasa" / "macros_private.py"
+    if not private_macros.exists():
+        shutil.copyfile(macros, private_macros)
 
 
 def optional_binary_tool(package: str) -> bool:
@@ -167,43 +327,40 @@ def main() -> None:
         "setuptools==75.1.0",
         "wheel==0.44.0",
     )
+    verify_lock_file(project_root / "requirements.lock.txt")
     pip(
         "install",
         "--only-binary=:all:",
+        "--no-deps",
         "--requirement",
         str(project_root / "requirements.lock.txt"),
     )
     install_manylinux_wheels()
-    pip("install", "--editable", str(project_root), "--no-deps")
-    pip("install", "--editable", str(vendor / "robosuite"), "--no-deps")
+    verify_pinned_versions(project_root / "requirements.lock.txt")
+    editable_options = ("--no-deps", "--no-build-isolation")
+    pip("install", *editable_options, "--editable", str(project_root))
+    pip("install", *editable_options, "--editable", str(vendor / "robosuite"))
     # The OopsieVerse installer itself applies this compatibility relaxation. Do
     # the same inside the untracked vendor checkout while retaining its source SHA.
     setup_py = vendor / "robocasa" / "setup.py"
     if setup_py.exists():
         text = setup_py.read_text()
         setup_py.write_text(text.replace('"numba==0.61.2"', '"numba>=0.61.2"'))
-    pip("install", "--editable", str(vendor / "robocasa"), "--no-deps")
-    pip("install", "--editable", str(vendor / "oopsieverse"), "--no-deps")
-    pip("install", "--editable", str(vendor / "dppo"), "--no-deps")
-    pip(
-        "install",
-        "--only-binary=:all:",
-        "diffusers==0.30.3",
-        "einops==0.8.0",
-        "gymnasium==0.29.1",
-        "hydra-core==1.3.2",
-    )
+    pip("install", *editable_options, "--editable", str(vendor / "robocasa"))
+    pip("install", *editable_options, "--editable", str(vendor / "oopsieverse"))
+    pip("install", *editable_options, "--editable", str(vendor / "dppo"))
     command(
         sys.executable,
         "-c",
         "import cv2, mujoco, numba, pyarrow; from lxml import etree; "
+        "from model.diffusion.diffusion_ppo import PPODiffusion; "
+        "from oopsiebench.envs.robocasa.shelve_item import DamageableShelveItem; "
         "assert cv2.__version__ == '4.10.0'; "
         "assert mujoco.__version__ == '3.3.1'; "
         "assert pyarrow.__version__ == '17.0.0'; "
         "assert etree.fromstring(b'<ok/>').tag == 'ok'; "
         "assert numba.njit(lambda value: value + 1)(1) == 2",
     )
-    pip("install", "--only-binary=:all:", "pytest==8.3.3")
     ruff_installed = optional_binary_tool("ruff==0.6.9")
     tooling_artifact = run_root / "artifacts" / "bootstrap_tooling.json"
     tooling_artifact.parent.mkdir(parents=True, exist_ok=True)
@@ -220,12 +377,7 @@ def main() -> None:
         + "\n"
     )
     if not arguments.skip_assets:
-        command(
-            sys.executable,
-            "robocasa/scripts/download_kitchen_assets.py",
-            cwd=vendor / "robocasa",
-        )
-        command(sys.executable, "robocasa/scripts/setup_macros.py", cwd=vendor / "robocasa")
+        install_assets(vendor)
     subprocess.check_call(
         [
             sys.executable,

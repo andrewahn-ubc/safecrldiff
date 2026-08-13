@@ -106,7 +106,9 @@ def _rows_for(
 
 def run(run_root: Path, maximum_per_group: int = 5) -> None:
     gate = read_gate(run_root)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if not torch.cuda.is_available():
+        raise RuntimeError("GPU video postprocessing cannot access CUDA")
+    device = torch.device("cuda")
     normalizer = load_normalization(run_root / "data" / "processed" / "seed_0" / "normalization.npz")
     output_manifest: dict[str, Any] = {"seed": 0, "maximum_per_group": maximum_per_group}
     comparison_path = (

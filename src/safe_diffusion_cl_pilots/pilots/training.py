@@ -495,7 +495,9 @@ def run_policy_pipeline(
     train_data = ChunkDataset(processed / "train.npz")
     validation_data = ChunkDataset(processed / "validation.npz")
     normalizer = load_normalization(processed / "normalization.npz")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if not torch.cuda.is_available():
+        raise RuntimeError("Pilots 1-2 require CUDA; refusing silent CPU fallback")
+    device = torch.device("cuda")
     actor, critic = policy_and_critic(family, train_data.states.shape[1], device)
     eval_a, eval_b = write_eval_seeds(run_root, seed)
     actor, bc_metrics, competence, retried = train_bc_with_retry(

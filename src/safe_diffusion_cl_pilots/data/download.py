@@ -15,6 +15,18 @@ DEMO_FILES = (
 )
 
 
+def _valid_demo(path: Path, *, minimum_episodes: int = 1) -> bool:
+    if not path.is_file() or path.stat().st_size == 0:
+        return False
+    try:
+        import h5py
+
+        with h5py.File(path, "r") as stream:
+            return "data" in stream and len(stream["data"]) >= minimum_episodes
+    except (ImportError, OSError):
+        return False
+
+
 def download_required_demos(destination: Path, revision: str | None = None) -> dict[str, dict[str, str]]:
     try:
         from huggingface_hub import hf_hub_download
@@ -38,9 +50,16 @@ def download_required_demos(destination: Path, revision: str | None = None) -> d
         target = destination / remote_path
         recorded_hash = previous.get(remote_path, {}).get("sha256")
         recorded_revision = previous.get(remote_path, {}).get("revision")
+        # A file without a complete manifest may be an interrupted copy. Never
+        # bless it merely because it is nonempty; redownload and then validate
+        # the actual HDF5 structure.
+        if target.exists() and (not recorded_hash or not recorded_revision):
+            target.unlink()
         if target.exists() and revision is not None and recorded_revision != revision:
             target.unlink()
         if target.exists() and recorded_hash and sha256_file(target) != recorded_hash:
+            target.unlink()
+        if target.exists() and not _valid_demo(target, minimum_episodes=10):
             target.unlink()
         if not target.exists():
             cached = Path(
@@ -58,8 +77,8 @@ def download_required_demos(destination: Path, revision: str | None = None) -> d
             temporary = target.with_suffix(target.suffix + ".partial")
             shutil.copyfile(cached, temporary)
             temporary.replace(target)
-        if target.stat().st_size == 0:
-            raise RuntimeError(f"downloaded file is empty: {target}")
+        if not _valid_demo(target, minimum_episodes=10):
+            raise RuntimeError(f"downloaded file is not a valid HDF5 demo with 10 episodes: {target}")
         if resolved_revision is None:
             from huggingface_hub import HfApi
 
