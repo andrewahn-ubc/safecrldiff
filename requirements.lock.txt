@@ -9,11 +9,9 @@ imageio[ffmpeg]==2.35.1
 matplotlib==3.9.2
 numpy==1.26.4
 pandas==2.2.3
-# Alliance exposes a 17.0.0+dummy.computecanada sentinel wheel whose missing
-# pyarrow-noinstall dependency is intended for module-managed environments.
-# Arbitrary exact equality excludes that local-version sentinel and selects the
-# official CPython wheel from PyPI instead.
-pyarrow===17.0.0
+# PyArrow 17.0.0 is installed separately from its direct, hash-verified public
+# wheel by scripts/bootstrap.py. Narval's resolver exposes only dummy sentinel
+# packages for PyArrow, so it cannot be resolved safely through this file.
 PyYAML==6.0.2
 scikit-learn==1.5.2
 torch==2.3.1

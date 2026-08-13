@@ -21,6 +21,18 @@ REPOSITORIES = {
     ),
 }
 
+# Narval's pip configuration advertises module-sentinel PyArrow packages such
+# as 17.0.0+dummy.computecanada and hides the public wheel from normal version
+# resolution. Install the official CPython 3.10 / Linux x86_64 wheel directly;
+# pip verifies this PyPI-published digest before installing it.
+PYARROW_WHEEL = (
+    "https://files.pythonhosted.org/packages/18/4c/"
+    "3db637d7578f683b0a8fb8999b436bdbedd6e3517bd4f90c70853cf3ad20/"
+    "pyarrow-17.0.0-cp310-cp310-manylinux_2_17_x86_64."
+    "manylinux2014_x86_64.whl"
+    "#sha256=75c06d4624c0ad6674364bb46ef38c3132768139ddec1c56582dbac54f2663e2"
+)
+
 
 def command(*arguments: str, cwd: Path | None = None) -> str:
     print("+", " ".join(arguments), flush=True)
@@ -92,6 +104,7 @@ def main() -> None:
         "--requirement",
         str(project_root / "requirements.lock.txt"),
     )
+    pip("install", "--no-deps", PYARROW_WHEEL)
     pip("install", "--editable", str(project_root), "--no-deps")
     pip("install", "--editable", str(vendor / "robosuite"))
     # The OopsieVerse installer itself applies this compatibility relaxation. Do

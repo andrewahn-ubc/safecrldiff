@@ -29,8 +29,9 @@ Cluster bootstrap redirects pip, Hugging Face, Torch, Rust/Cargo, Matplotlib,
 XDG, and temporary-file caches into `.cache/` and `.tmp/` under this scratch
 checkout. Pinned third-party dependencies must use binary wheels; Ruff is an
 optional wheel-only login-node lint check and can never trigger a Rust build.
-PyArrow uses exact public-version matching so Narval's module-only dummy wheel
-cannot be selected by pip.
+PyArrow is installed from the official CPython 3.10 Linux wheel using its
+direct PyPI URL and published SHA-256, bypassing Narval's module-only dummy
+wheel without compiling anything.
 
 Expected early feasibility artifact:
 
