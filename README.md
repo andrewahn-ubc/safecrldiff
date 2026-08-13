@@ -35,7 +35,8 @@ published SHA-256 hashes. The bootstrap explicitly targets their supported
 manylinux ABI, bypassing Narval's module-only dummy packages and source archives
 without compiling anything. Alliance `arrow` and `opencv` modules are not used
 because their current builds are not compatible with the pinned Python 3.10
-environment.
+environment. MuJoCo's `etils` dependency is capped at 1.13.0, the latest release
+that supports Python 3.10.
 
 Expected early feasibility artifact:
 

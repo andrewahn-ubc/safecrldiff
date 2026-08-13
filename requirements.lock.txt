@@ -3,7 +3,7 @@
 # such as pytest and Ruff are installed separately and never allowed to trigger
 # source builds during cluster bootstrap.
 absl-py==2.5.0
-etils[epath]==1.14.0
+etils[epath]==1.13.0
 glfw==1.12.0
 h5py==3.11.0
 gymnasium==0.29.1
