@@ -1,6 +1,7 @@
-# Reproducible project-level dependencies. Simulator packages are installed from
-# the pinned OopsieVerse checkout by scripts/bootstrap.py and recorded in each
-# run's artifacts/source_versions.json.
+# Reproducible runtime dependencies. Simulator packages are installed from the
+# pinned OopsieVerse checkout by scripts/bootstrap.py. Development-only tools
+# such as pytest and Ruff are installed separately and never allowed to trigger
+# source builds during cluster bootstrap.
 h5py==3.11.0
 gymnasium==0.29.1
 huggingface-hub==0.24.7
@@ -12,5 +13,3 @@ pyarrow==17.0.0
 PyYAML==6.0.2
 scikit-learn==1.5.2
 torch==2.3.1
-pytest==8.3.3
-ruff==0.6.9

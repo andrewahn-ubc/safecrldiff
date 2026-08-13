@@ -25,6 +25,11 @@ before the cluster's scratch-retention window expires.
 
 The command creates or reuses a Python 3.10 virtual environment, resolves and records exact upstream source SHAs, installs the pinned OopsieVerse simulator stack and minimal DPPO dependencies, downloads only the two Shelve Item HDF5 files, runs preflight checks, and submits the complete dependency chain. It prints every job ID and returns; Slurm completes the pipeline without later commands or approvals.
 
+Cluster bootstrap redirects pip, Hugging Face, Torch, Rust/Cargo, Matplotlib,
+XDG, and temporary-file caches into `.cache/` and `.tmp/` under this scratch
+checkout. Pinned third-party dependencies must use binary wheels; Ruff is an
+optional wheel-only login-node lint check and can never trigger a Rust build.
+
 Expected early feasibility artifact:
 
 ```text

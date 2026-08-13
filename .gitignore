@@ -1,5 +1,7 @@
 /.venv/
 /.test-venv/
+/.cache/
+/.tmp/
 /vendor/*/
 /data/
 /artifacts/

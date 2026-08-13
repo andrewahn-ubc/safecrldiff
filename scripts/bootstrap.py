@@ -48,6 +48,19 @@ def pip(*arguments: str) -> None:
     subprocess.check_call([sys.executable, "-m", "pip", *arguments])
 
 
+def optional_binary_tool(package: str) -> bool:
+    command_line = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--only-binary=:all:",
+        package,
+    ]
+    print("+", " ".join(command_line), flush=True)
+    return subprocess.run(command_line, check=False).returncode == 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-root", type=Path, required=True)
@@ -64,7 +77,22 @@ def main() -> None:
     for name, (url, requested, installed) in REPOSITORIES.items():
         sha = clone_or_resolve(vendor, name, url, requested) if installed else remote_sha(url)
         resolved[name] = {"url": url, "sha": sha, "installed": installed}
-    pip("install", "--requirement", str(project_root / "requirements.lock.txt"))
+    # Upgrade packaging tools from wheels and forbid source fallback for the
+    # large third-party runtime stack. This prevents login-node Rust/C/C++ builds.
+    pip(
+        "install",
+        "--only-binary=:all:",
+        "pip==24.3.1",
+        "setuptools==75.1.0",
+        "wheel==0.44.0",
+    )
+    pip(
+        "install",
+        "--only-binary=:all:",
+        "--requirement",
+        str(project_root / "requirements.lock.txt"),
+    )
+    pip("install", "--editable", str(project_root), "--no-deps")
     pip("install", "--editable", str(vendor / "robosuite"))
     # The OopsieVerse installer itself applies this compatibility relaxation. Do
     # the same inside the untracked vendor checkout while retaining its source SHA.
@@ -77,10 +105,27 @@ def main() -> None:
     pip("install", "--editable", str(vendor / "dppo"), "--no-deps")
     pip(
         "install",
+        "--only-binary=:all:",
         "diffusers==0.30.3",
         "einops==0.8.0",
         "gymnasium==0.29.1",
         "hydra-core==1.3.2",
+    )
+    pip("install", "--only-binary=:all:", "pytest==8.3.3")
+    ruff_installed = optional_binary_tool("ruff==0.6.9")
+    tooling_artifact = run_root / "artifacts" / "bootstrap_tooling.json"
+    tooling_artifact.parent.mkdir(parents=True, exist_ok=True)
+    tooling_artifact.write_text(
+        json.dumps(
+            {
+                "pytest": "8.3.3",
+                "ruff": "0.6.9" if ruff_installed else None,
+                "ruff_source_build_forbidden": True,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
     )
     if not arguments.skip_assets:
         command(

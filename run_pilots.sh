@@ -132,6 +132,31 @@ if [[ $dry_run -eq 0 ]]; then
   if command -v module >/dev/null 2>&1; then
     module load python/3.10
   fi
+  # Keep package/model/build caches off the small home quota. These variables
+  # are exported through sbatch as well, so compute nodes remain home-quota safe.
+  cache_root="$run_root/.cache"
+  temporary_root="$run_root/.tmp"
+  mkdir -p \
+    "$cache_root/pip" \
+    "$cache_root/huggingface" \
+    "$cache_root/torch" \
+    "$cache_root/rustup" \
+    "$cache_root/cargo" \
+    "$cache_root/matplotlib" \
+    "$temporary_root"
+  export PIP_CACHE_DIR="$cache_root/pip"
+  export HF_HOME="$cache_root/huggingface"
+  export TORCH_HOME="$cache_root/torch"
+  export RUSTUP_HOME="$cache_root/rustup"
+  export CARGO_HOME="$cache_root/cargo"
+  export MPLCONFIGDIR="$cache_root/matplotlib"
+  export XDG_CACHE_HOME="$cache_root"
+  export TMPDIR="$temporary_root"
+  export PYTHONNOUSERSITE=1
+  export PIP_DISABLE_PIP_VERSION_CHECK=1
+  if command -v diskusage_report >/dev/null 2>&1; then
+    diskusage_report || true
+  fi
   if [[ ! -x "$project_root/.venv/bin/python" ]]; then
     if ! command -v python3.10 >/dev/null 2>&1; then
       echo "Python 3.10 is required; load a Narval Python 3.10 module first." >&2
@@ -142,7 +167,11 @@ if [[ $dry_run -eq 0 ]]; then
   "$project_root/.venv/bin/python" scripts/bootstrap.py \
     --project-root "$project_root" --run-root "$run_root"
   "$project_root/.venv/bin/python" -m pytest -q
-  "$project_root/.venv/bin/ruff" check .
+  if [[ -x "$project_root/.venv/bin/ruff" ]]; then
+    "$project_root/.venv/bin/ruff" check .
+  else
+    echo "Ruff wheel unavailable on this platform; skipping cluster lint (source build forbidden)."
+  fi
   "$project_root/.venv/bin/python" -m compileall -q src
   "$project_root/.venv/bin/python" scripts/preflight.py
   if [[ -n "$force_from" ]]; then
