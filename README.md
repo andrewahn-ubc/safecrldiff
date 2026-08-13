@@ -29,11 +29,13 @@ Cluster bootstrap redirects pip, Hugging Face, Torch, Rust/Cargo, Matplotlib,
 XDG, and temporary-file caches into `.cache/` and `.tmp/` under this scratch
 checkout. Pinned third-party dependencies must use binary wheels; Ruff is an
 optional wheel-only login-node lint check and can never trigger a Rust build.
-PyArrow is installed from the official CPython 3.10 Linux wheel using its
-direct PyPI URL and published SHA-256, bypassing Narval's module-only dummy
-wheel and explicitly targeting its supported manylinux ABI without compiling
-anything. The Alliance `arrow` module is not used because its current builds
-are not compatible with the pinned Python 3.10 environment.
+Native PyArrow, headless OpenCV, MuJoCo, lxml, Numba, and LLVMlite packages are
+installed from official CPython 3.10 Linux wheels using direct PyPI URLs and
+published SHA-256 hashes. The bootstrap explicitly targets their supported
+manylinux ABI, bypassing Narval's module-only dummy packages and source archives
+without compiling anything. Alliance `arrow` and `opencv` modules are not used
+because their current builds are not compatible with the pinned Python 3.10
+environment.
 
 Expected early feasibility artifact:
 

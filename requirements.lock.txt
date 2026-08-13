@@ -2,6 +2,9 @@
 # pinned OopsieVerse checkout by scripts/bootstrap.py. Development-only tools
 # such as pytest and Ruff are installed separately and never allowed to trigger
 # source builds during cluster bootstrap.
+absl-py==2.5.0
+etils[epath]==1.14.0
+glfw==1.12.0
 h5py==3.11.0
 gymnasium==0.29.1
 huggingface-hub==0.24.7
@@ -9,9 +12,11 @@ imageio[ffmpeg]==2.35.1
 matplotlib==3.9.2
 numpy==1.26.4
 pandas==2.2.3
-# PyArrow 17.0.0 is installed separately from its direct, hash-verified public
-# wheel by scripts/bootstrap.py. Narval's resolver exposes only dummy sentinel
-# packages for PyArrow, so it cannot be resolved safely through this file.
+# PyArrow, OpenCV, MuJoCo, lxml, Numba, and LLVMlite are installed separately
+# from direct, hash-verified public wheels by scripts/bootstrap.py. Narval's
+# resolver either exposes dummy sentinels or rejects their manylinux tags.
+PyOpenGL==3.1.10
 PyYAML==6.0.2
 scikit-learn==1.5.2
+termcolor==3.3.0
 torch==2.3.1

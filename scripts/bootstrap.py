@@ -23,17 +23,60 @@ REPOSITORIES = {
     ),
 }
 
-# Narval's pip configuration advertises module-sentinel PyArrow packages such
-# as 17.0.0+dummy.computecanada and hides the public wheel from normal version
-# resolution. Install the official CPython 3.10 / Linux x86_64 wheel directly;
-# pip verifies this PyPI-published digest before installing it.
-PYARROW_WHEEL = (
-    "https://files.pythonhosted.org/packages/18/4c/"
-    "3db637d7578f683b0a8fb8999b436bdbedd6e3517bd4f90c70853cf3ad20/"
-    "pyarrow-17.0.0-cp310-cp310-manylinux_2_17_x86_64."
-    "manylinux2014_x86_64.whl"
-    "#sha256=75c06d4624c0ad6674364bb46ef38c3132768139ddec1c56582dbac54f2663e2"
-)
+# Narval advertises module-sentinel packages for PyArrow and OpenCV, and its
+# Gentoo Python does not advertise standard manylinux tags. Install the exact
+# public CPython/Linux wheels into the venv for the native packages that are
+# absent from its wheelhouse. Pip verifies every PyPI-published digest.
+MANYLINUX_WHEELS = {
+    "pyarrow": (
+        "17.0.0",
+        "https://files.pythonhosted.org/packages/18/4c/"
+        "3db637d7578f683b0a8fb8999b436bdbedd6e3517bd4f90c70853cf3ad20/"
+        "pyarrow-17.0.0-cp310-cp310-manylinux_2_17_x86_64."
+        "manylinux2014_x86_64.whl"
+        "#sha256=75c06d4624c0ad6674364bb46ef38c3132768139ddec1c56582dbac54f2663e2",
+    ),
+    "opencv-python-headless": (
+        "4.10.0.84",
+        "https://files.pythonhosted.org/packages/d1/09/"
+        "248f86a404567303cdf120e4a301f389b68e3b18e5c0cc428de327da609c/"
+        "opencv_python_headless-4.10.0.84-cp37-abi3-manylinux_2_17_x86_64."
+        "manylinux2014_x86_64.whl"
+        "#sha256=377d08a7e48a1405b5e84afcbe4798464ce7ee17081c1c23619c8b398ff18295",
+    ),
+    "mujoco": (
+        "3.3.1",
+        "https://files.pythonhosted.org/packages/ff/e3/"
+        "b971670848fccdfee38efbfb802cc76e3d5fc2ad3bc03d42f77b79bcdaf7/"
+        "mujoco-3.3.1-cp310-cp310-manylinux_2_17_x86_64."
+        "manylinux2014_x86_64.whl"
+        "#sha256=cfa05a01b2bded5d6a32c8ea97ef9e4995c1791a9d7a485112ff74fc5aee2e9d",
+    ),
+    "lxml": (
+        "5.3.2",
+        "https://files.pythonhosted.org/packages/44/cb/"
+        "c974078e015990f83d13ef00dac347d74b1d62c2e6ec6e8eeb40ec9a1f1a/"
+        "lxml-5.3.2-cp310-cp310-manylinux_2_17_x86_64."
+        "manylinux2014_x86_64.whl"
+        "#sha256=c9780de781a0d62a7c3680d07963db3048b919fc9e3726d9cfd97296a65ffce1",
+    ),
+    "llvmlite": (
+        "0.45.1",
+        "https://files.pythonhosted.org/packages/a6/7b/"
+        "6d7585998a5991fa74dc925aae57913ba8c7c2efff909de9d34cc1cd3c27/"
+        "llvmlite-0.45.1-cp310-cp310-manylinux2014_x86_64."
+        "manylinux_2_17_x86_64.whl"
+        "#sha256=f2d47f34e4029e6df3395de34cc1c66440a8d72712993a6e6168db228686711b",
+    ),
+    "numba": (
+        "0.62.1",
+        "https://files.pythonhosted.org/packages/a1/13/"
+        "9a27bcd0baeea236116070c7df458414336f25e9dd5a872b066cf36b74bf/"
+        "numba-0.62.1-cp310-cp310-manylinux2014_x86_64."
+        "manylinux_2_17_x86_64.whl"
+        "#sha256=14432af305ea68627a084cd702124fd5d0c1f5b8a413b05f4e14757202d1cf6c",
+    ),
+}
 
 
 def command(*arguments: str, cwd: Path | None = None) -> str:
@@ -67,6 +110,23 @@ def installed_version(package: str) -> str | None:
         return importlib.metadata.version(package)
     except importlib.metadata.PackageNotFoundError:
         return None
+
+
+def install_manylinux_wheels() -> None:
+    destination = sysconfig.get_path("purelib")
+    for package, (version, wheel) in MANYLINUX_WHEELS.items():
+        if installed_version(package) == version:
+            continue
+        pip(
+            "install",
+            "--no-deps",
+            "--only-binary=:all:",
+            "--platform=manylinux2014_x86_64",
+            "--target",
+            destination,
+            "--upgrade",
+            wheel,
+        )
 
 
 def optional_binary_tool(package: str) -> bool:
@@ -113,27 +173,17 @@ def main() -> None:
         "--requirement",
         str(project_root / "requirements.lock.txt"),
     )
-    if installed_version("pyarrow") != "17.0.0":
-        pip(
-            "install",
-            "--no-deps",
-            "--only-binary=:all:",
-            "--platform=manylinux2014_x86_64",
-            "--target",
-            sysconfig.get_path("purelib"),
-            "--upgrade",
-            PYARROW_WHEEL,
-        )
+    install_manylinux_wheels()
     pip("install", "--editable", str(project_root), "--no-deps")
-    pip("install", "--editable", str(vendor / "robosuite"))
+    pip("install", "--editable", str(vendor / "robosuite"), "--no-deps")
     # The OopsieVerse installer itself applies this compatibility relaxation. Do
     # the same inside the untracked vendor checkout while retaining its source SHA.
     setup_py = vendor / "robocasa" / "setup.py"
     if setup_py.exists():
         text = setup_py.read_text()
         setup_py.write_text(text.replace('"numba==0.61.2"', '"numba>=0.61.2"'))
-    pip("install", "--editable", str(vendor / "robocasa"))
-    pip("install", "--editable", str(vendor / "oopsieverse"))
+    pip("install", "--editable", str(vendor / "robocasa"), "--no-deps")
+    pip("install", "--editable", str(vendor / "oopsieverse"), "--no-deps")
     pip("install", "--editable", str(vendor / "dppo"), "--no-deps")
     pip(
         "install",
@@ -142,6 +192,16 @@ def main() -> None:
         "einops==0.8.0",
         "gymnasium==0.29.1",
         "hydra-core==1.3.2",
+    )
+    command(
+        sys.executable,
+        "-c",
+        "import cv2, mujoco, numba, pyarrow; from lxml import etree; "
+        "assert cv2.__version__ == '4.10.0'; "
+        "assert mujoco.__version__ == '3.3.1'; "
+        "assert pyarrow.__version__ == '17.0.0'; "
+        "assert etree.fromstring(b'<ok/>').tag == 'ok'; "
+        "assert numba.njit(lambda value: value + 1)(1) == 2",
     )
     pip("install", "--only-binary=:all:", "pytest==8.3.3")
     ruff_installed = optional_binary_tool("ruff==0.6.9")
