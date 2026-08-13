@@ -1,0 +1,18 @@
+action_horizon: 8
+action_dim: 7
+denoising_steps: 100
+sampling_steps: 5
+hidden_dims: [256, 256, 256]
+time_embedding_dim: 64
+activation: mish
+condition_on_state: true
+optimizer: adamw
+learning_rate: 0.0003
+batch_size: 64
+gradient_clip: 5.0
+maximum_steps: 50000
+early_stopping_evaluations: 20
+retry:
+  maximum_steps: 100000
+  learning_rates: [0.0001, 0.0003]
+

@@ -1,0 +1,10 @@
+expected_total_episodes: 90
+expected_episodes_per_file: 45
+noop_rollouts: 20
+minimum_safe_successes: 20
+minimum_damaging_successes: 10
+source_rate_gap: 0.15
+source_mean_loss_ratio: 2.0
+maximum_swap_displacement_m: 0.10
+context_resets: 100
+

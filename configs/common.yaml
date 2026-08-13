@@ -1,0 +1,22 @@
+project_version: 0.1.2
+task: DamageableShelveItem
+action_horizon: 8
+action_dim: 7
+object_order: [cereal, wine_1, wine_glass, wine_2, flour_bag]
+fragile_objects: [wine_1, wine_glass, wine_2]
+epsilon_damage: 1.0
+smoke_subset_seed: 0
+eval_episodes: 30
+eval_checkpoints: [0, 10000, 25000, 50000, 100000, 150000]
+max_rl_primitive_steps: 150000
+extended_rl_primitive_steps: 300000
+environment:
+  horizon: 500
+  use_camera_obs: false
+  has_renderer: false
+  has_offscreen_renderer: false
+  reward_shaping: true
+normalization:
+  source: A_safe_successful_train_only
+  frozen_during_context_b: true
+

@@ -1,0 +1,13 @@
+/.venv/
+/.test-venv/
+/vendor/oopsieverse/
+/vendor/dppo/
+/data/
+/artifacts/
+/results/
+/logs/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+requirements.resolved.txt

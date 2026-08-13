@@ -1,0 +1,13 @@
+learning_rate: 0.00003
+critic_learning_rate: 0.0003
+rollout_chunk_steps: 256
+ppo_epochs: 10
+minibatch_size: 256
+clip_ratio: 0.2
+gamma: 0.99
+gae_lambda: 0.95
+gradient_clip: 5.0
+reward: official_task_only
+replay_context_a: false
+damage_penalty: false
+

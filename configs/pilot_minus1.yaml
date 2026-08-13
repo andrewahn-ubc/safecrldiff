@@ -1,0 +1,9 @@
+episodes_per_file: 10
+expansion_per_file: 5
+maximum_episodes_per_file: 20
+minimum_replay_fraction: 0.95
+noop_rollouts: 20
+bc_optimizer_steps: 20
+rollout_chunk_steps: 5
+ppo_updates: 1
+
