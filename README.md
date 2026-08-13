@@ -5,45 +5,51 @@ This repository automates Pilot −1 and go/no-go Pilots 0–2 for safety forget
 ## One command on Narval
 
 ```bash
-# On a Narval login node, after cloning/uploading this project:
-bash run_pilots.sh \
-  --account def-REPLACE_WITH_ACCOUNT \
-  --project-root "$PROJECT/safe-diffusion-cl-pilots" \
-  --run-root "$SCRATCH/safe-diffusion-cl-pilots" \
-  --seeds 0,1,2
+# On a Narval login node:
+cd /home/taegyoem/scratch/safe-continual-rl-diffusion
+git pull --ff-only
+bash run_pilots.sh
 ```
+
+No user-defined environment variables are required for this checkout. The
+launcher defaults to account `def-mijungp`, discovers the repository from its
+own location, uses that same directory for run artifacts, and runs seeds
+`0,1,2`. Every default remains overridable with the corresponding command-line
+option.
+
+A separate project root and run root are **not required**. Using this checkout
+for both is supported: `.venv/`, `vendor/` checkouts, `data/`, `artifacts/`,
+`logs/`, and `results/` are ignored by Git. Because this checkout lives on
+Narval scratch, copy important final artifacts to persistent project storage
+before the cluster's scratch-retention window expires.
 
 The command creates or reuses a Python 3.10 virtual environment, resolves and records exact upstream source SHAs, installs the pinned OopsieVerse simulator stack and minimal DPPO dependencies, downloads only the two Shelve Item HDF5 files, runs preflight checks, and submits the complete dependency chain. It prints every job ID and returns; Slurm completes the pipeline without later commands or approvals.
 
 Expected early feasibility artifact:
 
 ```text
-$SCRATCH/safe-diffusion-cl-pilots/results/pilot_minus1/report.md
+/home/taegyoem/scratch/safe-continual-rl-diffusion/results/pilot_minus1/report.md
 ```
 
 Expected final artifact:
 
 ```text
-$SCRATCH/safe-diffusion-cl-pilots/results/GO_NO_GO_REPORT.md
+/home/taegyoem/scratch/safe-continual-rl-diffusion/results/GO_NO_GO_REPORT.md
 ```
 
 To inspect submission commands without installing, downloading, or submitting:
 
 ```bash
-bash run_pilots.sh \
-  --account def-example \
-  --project-root "$PWD" \
-  --run-root /tmp/safe-pilots-dry-run \
-  --dry-run
+bash run_pilots.sh --dry-run
 ```
 
 Recovery is idempotent. Valid downloads and `_SUCCESS` stages are reused. A forced rerun archives affected result directories with a UTC timestamp rather than deleting them:
 
 ```bash
-bash run_pilots.sh ... --force-from pilot-minus1
-bash run_pilots.sh ... --force-from pilot0
-bash run_pilots.sh ... --force-from pilots12
-bash run_pilots.sh ... --force-from aggregate
+bash run_pilots.sh --force-from pilot-minus1
+bash run_pilots.sh --force-from pilot0
+bash run_pilots.sh --force-from pilots12
+bash run_pilots.sh --force-from aggregate
 ```
 
 CPU counts and walltimes can be overridden with `--pilot-minus1-cpus`, `--pilot0-cpus`, `--gpu-cpus`, `--aggregate-cpus`, and the corresponding `--*-walltime` options. Defaults live in `configs/narval.yaml`.

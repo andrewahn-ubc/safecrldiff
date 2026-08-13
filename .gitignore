@@ -1,7 +1,6 @@
 /.venv/
 /.test-venv/
-/vendor/oopsieverse/
-/vendor/dppo/
+/vendor/*/
 /data/
 /artifacts/
 /results/

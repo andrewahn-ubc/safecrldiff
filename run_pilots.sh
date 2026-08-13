@@ -1,13 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+launcher_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 usage() {
-  echo "Usage: bash run_pilots.sh --account ACCOUNT --project-root PATH --run-root PATH [--seeds 0,1,2] [--dry-run] [--force-from STAGE]"
+  cat <<EOF
+Usage: bash run_pilots.sh [OPTIONS]
+
+Defaults:
+  --account       def-mijungp
+  --project-root  directory containing this launcher
+  --run-root      same as --project-root
+  --seeds         0,1,2
+
+Common options:
+  --dry-run
+  --force-from pilot-minus1|pilot0|pilots12|aggregate
+  --account ACCOUNT
+  --project-root PATH
+  --run-root PATH
+  --seeds 0,1,2
+EOF
 }
 
-account=""
-project_root=""
-run_root=""
+account="${SAFE_PILOTS_ACCOUNT:-def-mijungp}"
+project_root="${SAFE_PILOTS_PROJECT_ROOT:-$launcher_root}"
+run_root="${SAFE_PILOTS_RUN_ROOT:-}"
 seeds="0,1,2"
 dry_run=0
 local_smoke=0
@@ -45,11 +63,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$account" || -z "$project_root" || -z "$run_root" ]]; then
-  usage >&2
+run_root="${run_root:-$project_root}"
+project_root="$(cd "$project_root" && pwd)"
+if [[ ! -f "$project_root/configs/narval.yaml" || ! -f "$project_root/pyproject.toml" ]]; then
+  echo "--project-root is not a safecrldiff checkout: $project_root" >&2
   exit 2
 fi
-project_root="$(cd "$project_root" && pwd)"
 mkdir -p "$run_root" "$run_root/logs/slurm" "$run_root/results" "$run_root/artifacts"
 run_root="$(cd "$run_root" && pwd)"
 if [[ ! "$seeds" =~ ^-?[0-9]+(,-?[0-9]+)*$ ]]; then
@@ -93,6 +112,11 @@ export SAFE_PILOTS_SEEDS="$seeds"
 export SAFE_PILOTS_SMOKE_EPISODES_PER_FILE="$smoke_episodes_per_file"
 cd "$project_root"
 
+echo "Account:      $account"
+echo "Project root: $project_root"
+echo "Run root:     $run_root"
+echo "Seeds:        $seeds"
+
 if [[ $dry_run -eq 1 ]]; then
   echo "sbatch --parsable --account $account --cpus-per-task $pm1_cpus --time $pm1_walltime --output $run_root/logs/slurm/%x-%j.out slurm/pilot_minus1_cpu.sbatch"
   echo "sbatch --parsable --account $account --cpus-per-task $p0_cpus --time $p0_walltime --kill-on-invalid-dep=yes --dependency afterok:<PILOT_MINUS1_JOB_ID> --output $run_root/logs/slurm/%x-%j.out slurm/pilot0_cpu.sbatch"
@@ -103,10 +127,12 @@ if [[ $dry_run -eq 1 ]]; then
 fi
 
 if [[ $dry_run -eq 0 ]]; then
+  # Loading this on every invocation makes the environment inherited by Slurm
+  # jobs self-contained even when an existing venv is reused from a fresh shell.
+  if command -v module >/dev/null 2>&1; then
+    module load python/3.10
+  fi
   if [[ ! -x "$project_root/.venv/bin/python" ]]; then
-    if ! command -v python3.10 >/dev/null 2>&1 && command -v module >/dev/null 2>&1; then
-      module load python/3.10
-    fi
     if ! command -v python3.10 >/dev/null 2>&1; then
       echo "Python 3.10 is required; load a Narval Python 3.10 module first." >&2
       exit 2
