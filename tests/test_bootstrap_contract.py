@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 from pathlib import Path
 
+import pytest
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 
@@ -10,6 +12,14 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCK_FILE = ROOT / "requirements.lock.txt"
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.py"
 LAUNCHER = ROOT / "run_pilots.sh"
+
+
+def _bootstrap_module():
+    specification = importlib.util.spec_from_file_location("safe_pilots_bootstrap", BOOTSTRAP)
+    assert specification is not None and specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
 
 
 def _locked_requirements() -> list[Requirement]:
@@ -78,3 +88,29 @@ def test_mujoco_backends_match_node_capabilities() -> None:
     gpu_script = (ROOT / "slurm" / "pilots12_gpu_array.sbatch").read_text()
     assert "export MUJOCO_GL=egl" in gpu_script
     assert "export PYOPENGL_PLATFORM=egl" in gpu_script
+
+
+def test_robocasa_compatibility_patch_is_exact_and_idempotent(tmp_path: Path) -> None:
+    robocasa = tmp_path / "robocasa"
+    package = robocasa / "robocasa"
+    package.mkdir(parents=True)
+    setup_py = robocasa / "setup.py"
+    init_py = package / "__init__.py"
+    setup_py.write_text(
+        'deps = ["numpy==2.2.5", "numba==0.61.2", "scipy==1.15.3"]\n'
+    )
+    init_py.write_text(
+        'assert numpy.__version__ in ["2.2.5"], "numpy version must be 2.2.5"\n'
+    )
+    bootstrap = _bootstrap_module()
+    bootstrap.patch_robocasa_compatibility(robocasa)
+    bootstrap.patch_robocasa_compatibility(robocasa)
+    assert "numpy==1.26.4" in setup_py.read_text()
+    assert "numba>=0.61.2" in setup_py.read_text()
+    assert "scipy==1.15.1" in setup_py.read_text()
+    assert '"1.26.4"' in init_py.read_text()
+    assert "numpy version must be 1.26.4" in init_py.read_text()
+
+    init_py.write_text('assert numpy.__version__ == "unexpected"\n')
+    with pytest.raises(RuntimeError, match="audited compatibility patch"):
+        bootstrap.patch_robocasa_compatibility(robocasa)

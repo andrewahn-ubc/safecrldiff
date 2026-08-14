@@ -229,6 +229,42 @@ def verify_pinned_versions(lock_file: Path) -> None:
         raise RuntimeError("pinned dependency verification failed:\n" + "\n".join(mismatches))
 
 
+def replace_exact(path: Path, old: str, new: str, expected_count: int = 1) -> None:
+    text = path.read_text()
+    old_count = text.count(old)
+    new_count = text.count(new)
+    if old_count == expected_count:
+        path.write_text(text.replace(old, new))
+        return
+    if old_count == 0 and new_count == expected_count:
+        return
+    raise RuntimeError(
+        f"cannot apply audited compatibility patch to {path}: "
+        f"expected {expected_count} occurrences of {old!r}, found {old_count}; "
+        f"replacement occurrences={new_count}"
+    )
+
+
+def patch_robocasa_compatibility(robocasa_root: Path) -> None:
+    setup_py = robocasa_root / "setup.py"
+    init_py = robocasa_root / "robocasa" / "__init__.py"
+    if not setup_py.exists() or not init_py.exists():
+        raise RuntimeError(f"RoboCasa package metadata is incomplete under {robocasa_root}")
+    # OopsieVerse itself relaxes this pin because it requires Numba 0.62.1.
+    replace_exact(setup_py, '"numba==0.61.2"', '"numba>=0.61.2"')
+    # RoboCasa365's release assertion targets its standalone NumPy 2 stack.
+    # This project retains NumPy 1.26.4 for PyTorch 2.3.1 and the complete
+    # Narval binary-wheel ABI. Simulator preflight validates actual behavior.
+    replace_exact(setup_py, '"numpy==2.2.5"', '"numpy==1.26.4"')
+    replace_exact(setup_py, '"scipy==1.15.3"', '"scipy==1.15.1"')
+    replace_exact(init_py, '"2.2.5"', '"1.26.4"')
+    replace_exact(
+        init_py,
+        "numpy version must be 2.2.5",
+        "numpy version must be 1.26.4",
+    )
+
+
 def install_assets(vendor: Path) -> None:
     robocasa_root = vendor / "robocasa"
     assets_root = robocasa_root / "robocasa" / "models" / "assets"
@@ -348,26 +384,30 @@ def main() -> None:
     editable_options = ("--no-deps", "--no-build-isolation")
     pip("install", *editable_options, "--editable", str(project_root))
     pip("install", *editable_options, "--editable", str(vendor / "robosuite"))
-    # The OopsieVerse installer itself applies this compatibility relaxation. Do
-    # the same inside the untracked vendor checkout while retaining its source SHA.
-    setup_py = vendor / "robocasa" / "setup.py"
-    if setup_py.exists():
-        text = setup_py.read_text()
-        setup_py.write_text(text.replace('"numba==0.61.2"', '"numba>=0.61.2"'))
+    patch_robocasa_compatibility(vendor / "robocasa")
     pip("install", *editable_options, "--editable", str(vendor / "robocasa"))
     pip("install", *editable_options, "--editable", str(vendor / "oopsieverse"))
     pip("install", *editable_options, "--editable", str(vendor / "dppo"))
     command(
         sys.executable,
         "-c",
-        "import cv2, mujoco, numba, pyarrow; from lxml import etree; "
+        "import cv2, h5py, matplotlib, mujoco, numba, numpy, pandas, pyarrow, scipy, sklearn, torch; "
+        "from lxml import etree; "
         "from model.diffusion.diffusion_ppo import PPODiffusion; "
         "from oopsiebench.envs.robocasa.shelve_item import DamageableShelveItem; "
         "assert cv2.__version__ == '4.10.0'; "
+        "assert h5py.__version__ == '3.11.0'; "
+        "assert matplotlib.__version__ == '3.9.2'; "
         "assert mujoco.__version__ == '3.3.1'; "
+        "assert numpy.__version__ == '1.26.4'; "
+        "assert pandas.__version__ == '2.2.3'; "
         "assert pyarrow.__version__ == '17.0.0'; "
+        "assert scipy.__version__ == '1.15.1'; "
+        "assert sklearn.__version__ == '1.5.2'; "
+        "assert torch.__version__.split('+')[0] == '2.3.1'; "
         "assert etree.fromstring(b'<ok/>').tag == 'ok'; "
-        "assert numba.njit(lambda value: value + 1)(1) == 2",
+        "assert numba.njit(lambda value: value + 1)(1) == 2; "
+        "assert torch.from_numpy(numpy.zeros(1, dtype=numpy.float32)).item() == 0.0",
     )
     ruff_installed = optional_binary_tool("ruff==0.6.9")
     tooling_artifact = run_root / "artifacts" / "bootstrap_tooling.json"
@@ -408,7 +448,11 @@ def main() -> None:
         (run_root / "data" / "demo_download_manifest.json").read_text()
     )
     manifest["working_tree_patches"] = {
-        "robocasa": "numba==0.61.2 relaxed to numba>=0.61.2, matching OopsieVerse installer"
+        "robocasa": [
+            "numba==0.61.2 relaxed to numba>=0.61.2, matching OopsieVerse installer",
+            "standalone numpy==2.2.5 assertion aligned to project numpy==1.26.4",
+            "standalone scipy==1.15.3 metadata aligned to project scipy==1.15.1",
+        ]
     }
     dppo_sources = [
         vendor / "dppo" / "model" / "diffusion" / "diffusion_ppo.py",

@@ -39,8 +39,12 @@ their current builds are not compatible with the pinned Python 3.10 environment.
 MuJoCo's `etils` dependency is capped at 1.13.0, the latest release that supports
 Python 3.10. Every transitive dependency is explicitly pinned and installed with
 dependency resolution disabled; editable vendor builds also run without isolated
-build environments. OopsieVerse and DPPO are fixed to exact commits rather than
-whatever `main` points to on a rerun. RoboCasa asset setup checks task-specific
+build environments. RoboCasa's standalone NumPy 2.2.5 assertion and SciPy 1.15.3
+metadata are narrowly aligned to this project's NumPy 1.26.4 / SciPy 1.15.1
+binary stack; its Numba relaxation matches the official OopsieVerse installer.
+Bootstrap imports every compiled dependency and exercises the PyTorch-to-NumPy
+bridge before submission. OopsieVerse and DPPO are fixed to exact commits rather
+than whatever `main` points to on a rerun. RoboCasa asset setup checks task-specific
 files, downloads only incomplete groups, and never prompts or redownloads
 completed groups on reruns. The A100 stage also fails immediately if the allocated
 GPU is not visible to PyTorch instead of silently training on CPU.
