@@ -23,7 +23,31 @@ for both is supported: `.venv/`, `vendor/` checkouts, `data/`, `artifacts/`,
 Narval scratch, copy important final artifacts to persistent project storage
 before the cluster's scratch-retention window expires.
 
-The command creates or reuses a Python 3.10 virtual environment, resolves and records exact upstream source SHAs, installs the pinned OopsieVerse simulator stack and minimal DPPO dependencies, downloads only the two Shelve Item HDF5 files, runs preflight checks, and submits the complete dependency chain. It prints every job ID and returns; Slurm completes the pipeline without later commands or approvals.
+The command creates or reuses a Python 3.10 virtual environment, resolves and records exact upstream source SHAs, installs the pinned OopsieVerse simulator stack and minimal DPPO dependencies, downloads only the two Shelve Item HDF5 files, runs preflight checks, and submits the complete dependency chain. It prints every job ID and returns; Slurm completes the pipeline without later commands or approvals once the required 45 safe and 45 unsafe whole episodes are available.
+
+The downloader checks those exact episode counts before any Slurm submission.
+If an official Hugging Face revision contains an incomplete snapshot, it writes
+`data/demo_download_manifest.json` and `data/demo_dataset_status.json`, then stops
+instead of duplicating or splitting trajectories. After a corrected upstream
+revision is published, select it explicitly:
+
+```bash
+bash run_pilots.sh --demo-revision CORRECTED_HUGGING_FACE_COMMIT
+```
+
+Alternatively, place a complete verified snapshot under one directory and pass
+that directory without defining an environment variable:
+
+```text
+/path/to/full-demos/robocasa/teleop/shelve_item_safe.hdf5
+/path/to/full-demos/robocasa/teleop/shelve_item_unsafe.hdf5
+```
+
+```bash
+bash run_pilots.sh --demo-source-dir /path/to/full-demos
+```
+
+Downloaded RoboCasa assets and installed dependencies are reused in either case.
 
 Cluster bootstrap redirects pip, Hugging Face, Torch, Rust/Cargo, Matplotlib,
 XDG, and temporary-file caches into `.cache/` and `.tmp/` under this scratch

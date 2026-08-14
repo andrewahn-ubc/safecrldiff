@@ -333,24 +333,14 @@ def install_assets(vendor: Path) -> None:
         shutil.copyfile(macros, private_macros)
 
 
-def optional_binary_tool(package: str) -> bool:
-    command_line = [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        "--only-binary=:all:",
-        package,
-    ]
-    print("+", " ".join(command_line), flush=True)
-    return subprocess.run(command_line, check=False).returncode == 0
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-root", type=Path, required=True)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--skip-assets", action="store_true")
+    demo_source = parser.add_mutually_exclusive_group()
+    demo_source.add_argument("--demo-revision")
+    demo_source.add_argument("--demo-source-dir", type=Path)
     arguments = parser.parse_args()
     if sys.version_info[:2] != (3, 10):
         raise RuntimeError(f"Python 3.10 is required, running {sys.version.split()[0]}")
@@ -409,14 +399,14 @@ def main() -> None:
         "assert numba.njit(lambda value: value + 1)(1) == 2; "
         "assert torch.from_numpy(numpy.zeros(1, dtype=numpy.float32)).item() == 0.0",
     )
-    ruff_installed = optional_binary_tool("ruff==0.6.9")
+    ruff_version = installed_version("ruff")
     tooling_artifact = run_root / "artifacts" / "bootstrap_tooling.json"
     tooling_artifact.parent.mkdir(parents=True, exist_ok=True)
     tooling_artifact.write_text(
         json.dumps(
             {
                 "pytest": "8.3.3",
-                "ruff": "0.6.9" if ruff_installed else None,
+                "ruff": ruff_version,
                 "ruff_source_build_forbidden": True,
             },
             indent=2,
@@ -426,16 +416,18 @@ def main() -> None:
     )
     if not arguments.skip_assets:
         install_assets(vendor)
-    subprocess.check_call(
-        [
-            sys.executable,
-            "-m",
-            "safe_diffusion_cl_pilots.data.download",
-            "--destination",
-            str(run_root / "data"),
-        ],
-        cwd=project_root,
-    )
+    download_command = [
+        sys.executable,
+        "-m",
+        "safe_diffusion_cl_pilots.data.download",
+        "--destination",
+        str(run_root / "data"),
+    ]
+    if arguments.demo_revision:
+        download_command.extend(("--revision", arguments.demo_revision))
+    if arguments.demo_source_dir:
+        download_command.extend(("--source-directory", str(arguments.demo_source_dir.resolve())))
+    subprocess.check_call(download_command, cwd=project_root)
     from safe_diffusion_cl_pilots.utils.manifests import source_versions
 
     manifest = source_versions(project_root)

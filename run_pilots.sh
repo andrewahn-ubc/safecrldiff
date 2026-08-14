@@ -19,6 +19,8 @@ Common options:
   --account ACCOUNT
   --project-root PATH
   --run-root PATH
+  --demo-revision HUGGING_FACE_COMMIT
+  --demo-source-dir PATH
   --seeds 0,1,2
 EOF
 }
@@ -27,6 +29,8 @@ account="${SAFE_PILOTS_ACCOUNT:-def-mijungp}"
 project_root="${SAFE_PILOTS_PROJECT_ROOT:-$launcher_root}"
 run_root="${SAFE_PILOTS_RUN_ROOT:-}"
 seeds="0,1,2"
+demo_revision=""
+demo_source_dir=""
 dry_run=0
 local_smoke=0
 force_from=""
@@ -45,6 +49,8 @@ while [[ $# -gt 0 ]]; do
     --account) account="$2"; shift 2 ;;
     --project-root) project_root="$2"; shift 2 ;;
     --run-root) run_root="$2"; shift 2 ;;
+    --demo-revision) demo_revision="$2"; shift 2 ;;
+    --demo-source-dir) demo_source_dir="$2"; shift 2 ;;
     --seeds) seeds="$2"; shift 2 ;;
     --dry-run) dry_run=1; shift ;;
     --local-smoke) local_smoke=1; shift ;;
@@ -62,6 +68,11 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+if [[ -n "$demo_revision" && -n "$demo_source_dir" ]]; then
+  echo "--demo-revision and --demo-source-dir are mutually exclusive" >&2
+  exit 2
+fi
 
 run_root="${run_root:-$project_root}"
 project_root="$(cd "$project_root" && pwd)"
@@ -171,8 +182,14 @@ if [[ $dry_run -eq 0 ]]; then
     fi
     python3.10 -m venv "$project_root/.venv"
   fi
-  "$project_root/.venv/bin/python" scripts/bootstrap.py \
-    --project-root "$project_root" --run-root "$run_root"
+  bootstrap_args=(--project-root "$project_root" --run-root "$run_root")
+  if [[ -n "$demo_revision" ]]; then
+    bootstrap_args+=(--demo-revision "$demo_revision")
+  fi
+  if [[ -n "$demo_source_dir" ]]; then
+    bootstrap_args+=(--demo-source-dir "$demo_source_dir")
+  fi
+  "$project_root/.venv/bin/python" scripts/bootstrap.py "${bootstrap_args[@]}"
   "$project_root/.venv/bin/python" -m pytest -q
   if [[ -x "$project_root/.venv/bin/ruff" ]]; then
     "$project_root/.venv/bin/ruff" check .
