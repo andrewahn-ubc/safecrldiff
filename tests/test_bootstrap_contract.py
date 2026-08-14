@@ -9,6 +9,7 @@ from packaging.utils import canonicalize_name
 ROOT = Path(__file__).resolve().parents[1]
 LOCK_FILE = ROOT / "requirements.lock.txt"
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.py"
+LAUNCHER = ROOT / "run_pilots.sh"
 
 
 def _locked_requirements() -> list[Requirement]:
@@ -53,6 +54,7 @@ def test_direct_native_wheels_are_hash_pinned() -> None:
         and any(isinstance(target, ast.Name) and target.id == "MANYLINUX_WHEELS" for target in node.targets)
     )
     assert {
+        "glfw",
         "pyarrow",
         "opencv-python-headless",
         "mujoco",
@@ -65,3 +67,14 @@ def test_direct_native_wheels_are_hash_pinned() -> None:
         assert url.startswith("https://files.pythonhosted.org/")
         assert ".whl#sha256=" in url
         assert len(url.rsplit("#sha256=", 1)[1]) == 64
+
+
+def test_mujoco_backends_match_node_capabilities() -> None:
+    assert "export MUJOCO_GL=disable" in LAUNCHER.read_text()
+    for name in ("pilot_minus1_cpu.sbatch", "pilot0_cpu.sbatch", "aggregate_cpu.sbatch"):
+        script = (ROOT / "slurm" / name).read_text()
+        assert "export MUJOCO_GL=disable" in script
+        assert "export PYOPENGL_PLATFORM=egl" not in script
+    gpu_script = (ROOT / "slurm" / "pilots12_gpu_array.sbatch").read_text()
+    assert "export MUJOCO_GL=egl" in gpu_script
+    assert "export PYOPENGL_PLATFORM=egl" in gpu_script

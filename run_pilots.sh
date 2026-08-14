@@ -154,6 +154,13 @@ if [[ $dry_run -eq 0 ]]; then
   export TMPDIR="$temporary_root"
   export PYTHONNOUSERSITE=1
   export PIP_DISABLE_PIP_VERSION_CHECK=1
+  # Bootstrap and preflight use low-dimensional simulator state only. Avoid
+  # selecting GLFW (which needs a display) or EGL (which needs a GPU) on the
+  # shared Narval login node. GPU Slurm jobs select EGL explicitly.
+  if [[ $local_smoke -eq 0 ]]; then
+    export MUJOCO_GL=disable
+    unset PYOPENGL_PLATFORM || true
+  fi
   if command -v diskusage_report >/dev/null 2>&1; then
     diskusage_report || true
   fi

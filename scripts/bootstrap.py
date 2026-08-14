@@ -37,6 +37,14 @@ REPOSITORIES = {
 # public CPython/Linux wheels into the venv for the native packages that are
 # absent from its wheelhouse. Pip verifies every PyPI-published digest.
 MANYLINUX_WHEELS = {
+    "glfw": (
+        "2.10.0",
+        "https://files.pythonhosted.org/packages/e2/fa/"
+        "b035636cd82198b97b51a93efe9cfc4343d6b15cefbd336a3f2be871d848/"
+        "glfw-2.10.0-py2.py27.py3.py30.py31.py32.py33.py34.py35.py36.py37."
+        "py38.py39.py310.py311.py312.py313.py314-none-manylinux2014_x86_64.whl"
+        "#sha256=91d36b3582a766512eff8e3b5dcc2d3ffcbf10b7cf448551085a08a10f1b8244",
+    ),
     "pyarrow": (
         "17.0.0",
         "https://files.pythonhosted.org/packages/18/4c/"

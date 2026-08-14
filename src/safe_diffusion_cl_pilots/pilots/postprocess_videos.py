@@ -12,6 +12,8 @@ import torch
 
 from safe_diffusion_cl_pilots.data.build_lowdim_dataset import load_normalization
 from safe_diffusion_cl_pilots.envs.object_centric_obs import ObjectCentricObservation
+from safe_diffusion_cl_pilots.envs.shelve_contexts import make_context
+from safe_diffusion_cl_pilots.envs.validation import write_reset_image
 from safe_diffusion_cl_pilots.evaluation.videos import (
     deterministic_video_indices,
     write_video,
@@ -21,6 +23,30 @@ from safe_diffusion_cl_pilots.utils.logging import write_json
 from safe_diffusion_cl_pilots.utils.seeding import torch_rng
 
 from .training import chunk_env, policy_and_critic, read_gate
+
+
+def _write_context_reset_images(gate: dict[str, Any], run_root: Path) -> None:
+    manifest: dict[str, Any] = {"status": "COMPLETED", "images": [], "errors": []}
+    environment_kwargs = dict(gate.get("environment_kwargs", {}))
+    critical = str(gate["critical_fragile_object"])
+    for context in ("A", "B"):
+        destination = run_root / "artifacts" / f"context_reset_{context}.png"
+
+        def factory(*, selected: str = context, **kwargs: Any) -> Any:
+            return make_context(
+                selected,
+                critical_fragile_object=critical,
+                **environment_kwargs,
+                **kwargs,
+            )
+
+        try:
+            write_reset_image(factory, destination)
+            manifest["images"].append(str(destination.relative_to(run_root)))
+        except Exception as error:
+            manifest["status"] = "PARTIAL"
+            manifest["errors"].append(f"Context {context}: {type(error).__name__}: {error}")
+    write_json(run_root / "artifacts" / "context_reset_images.json", manifest)
 
 
 def _capture(env: Any) -> np.ndarray:
@@ -108,6 +134,7 @@ def run(run_root: Path, maximum_per_group: int = 5) -> None:
     gate = read_gate(run_root)
     if not torch.cuda.is_available():
         raise RuntimeError("GPU video postprocessing cannot access CUDA")
+    _write_context_reset_images(gate, run_root)
     device = torch.device("cuda")
     normalizer = load_normalization(run_root / "data" / "processed" / "seed_0" / "normalization.npz")
     output_manifest: dict[str, Any] = {"seed": 0, "maximum_per_group": maximum_per_group}

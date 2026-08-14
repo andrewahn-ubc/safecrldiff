@@ -21,7 +21,7 @@ from safe_diffusion_cl_pilots.envs.shelve_contexts import (
     make_context_from_metadata,
 )
 from safe_diffusion_cl_pilots.envs.state_enrichment import enrich_object_state
-from safe_diffusion_cl_pilots.envs.validation import validate_context_pair, write_reset_image
+from safe_diffusion_cl_pilots.envs.validation import validate_context_pair
 from safe_diffusion_cl_pilots.evaluation.metrics import (
     calibrate_damage_threshold,
     episode_row,
@@ -181,8 +181,12 @@ def run(project_root: Path, run_root: Path, seeds: list[int]) -> None:
         placement_changed = placement_distance >= 0.05
         manifest["critical_placement_distance_m"] = placement_distance
         write_json(run_root / "artifacts" / "context_manifest.json", manifest)
-        write_reset_image(factory_a, run_root / "artifacts" / "context_reset_A.png")
-        write_reset_image(factory_b, run_root / "artifacts" / "context_reset_B.png")
+        # The CPU partition has no display or GPU-backed EGL device. Seed 0
+        # renders these two diagnostic images later inside its A100 allocation.
+        write_json(
+            run_root / "artifacts" / "context_reset_images.json",
+            {"status": "DEFERRED_TO_SEED_0_GPU", "images": []},
+        )
         gate = pilot0_gate(
             summaries["safe"],
             summaries["unsafe"],

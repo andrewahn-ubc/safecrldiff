@@ -29,20 +29,24 @@ Cluster bootstrap redirects pip, Hugging Face, Torch, Rust/Cargo, Matplotlib,
 XDG, and temporary-file caches into `.cache/` and `.tmp/` under this scratch
 checkout. Pinned third-party dependencies must use binary wheels; Ruff is an
 optional wheel-only login-node lint check and can never trigger a Rust build.
-Native PyArrow, headless OpenCV, MuJoCo, lxml, Numba, and LLVMlite packages are
-installed from official CPython 3.10 Linux wheels using direct PyPI URLs and
-published SHA-256 hashes. The bootstrap explicitly targets their supported
-manylinux ABI, bypassing Narval's module-only dummy packages and source archives
-without compiling anything. Alliance `arrow` and `opencv` modules are not used
-because their current builds are not compatible with the pinned Python 3.10
-environment. MuJoCo's `etils` dependency is capped at 1.13.0, the latest release
-that supports Python 3.10. Every transitive dependency is explicitly pinned and
-installed with dependency resolution disabled; editable vendor builds also run
-without isolated build environments. OopsieVerse and DPPO are fixed to exact
-commits rather than whatever `main` points to on a rerun. RoboCasa asset setup
-checks task-specific files, downloads only incomplete groups, and never prompts
-or redownloads completed groups on reruns. The A100 stage also fails immediately
-if the allocated GPU is not visible to PyTorch instead of silently training on CPU.
+Native GLFW, PyArrow, headless OpenCV, MuJoCo, lxml, Numba, and LLVMlite packages
+are installed from official Linux wheels using direct PyPI URLs and published
+SHA-256 hashes. The pinned GLFW wheel includes `libglfw.so`; Narval's wrapper-only
+wheel does not. The bootstrap explicitly targets the supported manylinux ABI,
+bypassing Narval's module-only dummy packages and source archives without
+compiling anything. Alliance `arrow` and `opencv` modules are not used because
+their current builds are not compatible with the pinned Python 3.10 environment.
+MuJoCo's `etils` dependency is capped at 1.13.0, the latest release that supports
+Python 3.10. Every transitive dependency is explicitly pinned and installed with
+dependency resolution disabled; editable vendor builds also run without isolated
+build environments. OopsieVerse and DPPO are fixed to exact commits rather than
+whatever `main` points to on a rerun. RoboCasa asset setup checks task-specific
+files, downloads only incomplete groups, and never prompts or redownloads
+completed groups on reruns. The A100 stage also fails immediately if the allocated
+GPU is not visible to PyTorch instead of silently training on CPU.
+Login-node preflight and CPU stages explicitly disable MuJoCo rendering. The
+two context-reset diagnostic images are rendered later by seed 0 on its A100,
+where the EGL backend is available.
 
 Expected early feasibility artifact:
 

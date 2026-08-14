@@ -9,11 +9,10 @@
 set -euo pipefail
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
-export MUJOCO_GL=egl
-export PYOPENGL_PLATFORM=egl
+export MUJOCO_GL=disable
+unset PYOPENGL_PLATFORM || true
 cd "$SAFE_PILOTS_PROJECT_ROOT"
 "$SAFE_PILOTS_PROJECT_ROOT/.venv/bin/python" -m safe_diffusion_cl_pilots.pilots.aggregate \
   --project-root "$SAFE_PILOTS_PROJECT_ROOT" \
   --run-root "$SAFE_PILOTS_RUN_ROOT" \
   --seeds "$SAFE_PILOTS_SEEDS"
-
